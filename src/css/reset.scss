@@ -1,0 +1,43 @@
+* {
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  overscroll-behavior: contain;
+  letter-spacing: 1px;
+  line-height: 1.25;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+a {
+  color: inherit;
+  outline: none;
+  text-decoration: inherit;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+pre {
+  white-space: pre-line;
+}
+
+iframe {
+  display: block;
+}
+
+figure {
+  margin: initial;
+}
