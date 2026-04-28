@@ -1,236 +1,148 @@
-# Amulet — 五行運轉．扭轉人生
+# Amulet — 五行運轉．扭轉人生 (Monorepo)
 
-> 互動式 3D 護身符抽籤體驗。透過 Three.js 即時渲染 + Cannon-ES 物理引擎模擬扭蛋掉落,結合五行籤詩劇情與分享機制,提供完整的網頁互動敘事體驗。
-
----
-
-## 專案概述
-
-Amulet 是一個 SPA 形式的互動式行銷活動網站,使用者依序經歷「進入 → 選籤 → 搖蛋 → 結果 → 分享」的流程。整體設計強調沉浸感:
-
-- **3D 即時演算**:以 Three.js + Cannon-ES 實作護身符扭蛋的物理掉落、彈跳與光暈效果。
-- **多裝置適配**:支援陀螺儀互動 (`useGyroscope`)、觸控與滑鼠操控,使用 Quasar 響應式佈局兼容行動 / 桌面。
-- **可分享結果**:透過 `html2canvas` 將最終籤詩畫面合成為圖檔,搭配自訂分享連結回傳到使用者。
-- **可觀測性**:前端錯誤由 Sentry 收斂,使用者行為事件由 Google Tag Manager 觸發。
+> 互動式 3D 護身符抽籤體驗的全端工程庫。前端負責 3D 抽蛋互動與分享、後端提供圖片處理 API 與業務邏輯。本 repo 採 monorepo 架構,前後端各自獨立部署但共享版本與發版節奏。
 
 ---
 
-## 技術
-
-| 類別 | 技術 | 用途 |
-|---|---|---|
-| 框架 | Quasar 2 + Vue 3 (Composition API) | UI 元件 / 路由 / SPA scaffold |
-| 語言 | TypeScript 4.5 | 型別安全 |
-| 狀態管理 | Pinia 2 | 跨頁狀態(玩家選擇、抽籤結果等) |
-| 路由 | Vue Router 4 (history mode) | 多頁面切換 |
-| 建置工具 | Vite (Quasar Vite CLI) | 開發伺服器 / 打包 |
-| 樣式 | SCSS + Tailwind CSS 3 + PostCSS + Autoprefixer | 樣式系統與跨瀏覽器前綴 |
-| 3D / 動畫 | Three.js (r176) + Cannon-ES | 護身符 3D 模型與物理模擬 |
-| HTTP | Axios | API 通訊 |
-| 圖片合成 | html2canvas | 將結果頁渲染為可下載 / 可分享圖檔 |
-| 觀測 | Sentry (`@sentry/vue`) + GTM (`@gtm-support/vue-gtm`) | 錯誤追蹤 / 行為分析 |
-| Lint / Format | ESLint (airbnb-base) + Prettier | 程式風格統一 |
-
----
-
-## 系統架構
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Browser (SPA)                           │
-│                                                              │
-│   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
-│   │  HomePage    │ -> │  GamePage    │ -> │  PlayPage    │  │
-│   │  (引導 / CTA)│    │  (選籤入口)  │    │  (3D 抽蛋)   │  │
-│   └──────────────┘    └──────────────┘    └──────────────┘  │
-│                                                  │           │
-│   ┌──────────────┐    ┌──────────────┐          ▼           │
-│   │  ResultPage  │ <- │  MakePage    │ <-  Three.js /       │
-│   │  (籤詩 + 分享│    │ (合成中載入) │     Cannon-ES        │
-│   └──────────────┘    └──────────────┘                      │
-│           │                                                  │
-│           └─> html2canvas ─> 分享圖 ─> QUASAR_SHARE_URL      │
-│                                                              │
-│   Pinia (跨頁狀態) | Vue Router (history) | Boot files       │
-└──────┬──────────────────────────────────┬───────────────────┘
-       │                                  │
-       ▼                                  ▼
-   IMAGE_API_URL                  Sentry / GTM
- (後端圖片素材)                    (觀測層)
-       │
-       ▼
-   AWS S3 (CDN-fronted static hosting)
-```
-
-**啟動順序**(`src/boot/`):
-1. `axios.ts` — 建立 HTTP client、注入 base URL。
-2. `gtm.ts` — 初始化 Google Tag Manager。
-3. `sentry.ts` — 初始化 Sentry,綁定 Vue 錯誤邊界。
-
-**狀態流向**(Pinia store `src/stores/store.ts`):使用者抽到的籤、產生的圖檔、頁面進度由單一 store 統一保存,跨頁面讀寫。
-
----
-
-## 資料夾結構
+## Monorepo 結構
 
 ```
 .
-├── public/                  靜態資源(favicon、預先載入的卡牌與結果圖)
-├── src/
-│   ├── App.vue              根元件
-│   ├── assets/              經 bundler 處理的圖片素材
-│   ├── boot/                Quasar Boot Files(axios / gtm / sentry)
-│   ├── components/          可重用 UI 元件
-│   │   ├── DrawingModal.vue       抽籤過場彈窗
-│   │   ├── GameBox.vue            扭蛋互動容器
-│   │   ├── GameHeader.vue         遊戲頂欄
-│   │   ├── LoadingIcon.vue        載入動畫
-│   │   ├── RippleLoader.vue       水波紋載入
-│   │   ├── SecondStep.vue         第二步流程
-│   │   ├── TypeWriter.vue         打字機文字效果
-│   │   └── ZoomOut.vue            鏡頭拉遠動畫
-│   ├── composables/
-│   │   ├── play/
-│   │   │   ├── useGlowEffect.ts   護身符光暈效果
-│   │   │   └── useThreeGashapon.ts 扭蛋 3D 場景核心邏輯
-│   │   └── useGyroscope.ts        陀螺儀感測
-│   ├── css/                 全域樣式(app / quasar 變數 / reset / tailwind)
-│   ├── data/
-│   │   └── balls-message.ts       籤詩文案資料
-│   ├── layouts/
-│   │   └── MainLayout.vue         全站共用 Layout
-│   ├── pages/                     5 個主要頁面(見下)
-│   ├── router/                    Vue Router 設定
-│   ├── stores/                    Pinia stores
-│   ├── types/                     全域型別宣告
-│   └── utils/
-│       └── preloader.ts           圖片 / 資源預載
-├── variables/
-│   ├── parser.js                  多環境 dotenv 載入器
-│   └── .env.example               環境變數範本
-├── quasar.config.js               Quasar 主設定
-├── tailwind.config.js
-├── postcss.config.cjs
-├── tsconfig.json
-└── Makefile                       AWS S3 部署指令
+├── web/                Quasar 2 + Vue 3 + TypeScript SPA(前端)
+│   ├── src/
+│   ├── public/
+│   ├── variables/      多環境 dotenv
+│   ├── quasar.config.js
+│   └── package.json
+│
+├── server/             Node.js + Express API(後端)
+│   ├── server.js       主程式(Express + sharp + node-cron)
+│   ├── .env.example
+│   └── package.json
+│
+├── README.md           本檔(monorepo 總覽)
+└── .gitignore          monorepo 共用 ignore 規則
 ```
+
+子專案各自有 `package.json` / `node_modules`,互不干擾。版控以 Git Flow 管理,版本以單一 SemVer tag 統籌發版(本 repo 同一個 tag 同時涵蓋 web / server)。
+
+> 註:`server/.ebextensions/`(AWS Elastic Beanstalk 部署設定)與 server 相關 `*.md` 部署文件僅保留在本機,不入版控,由維運者另行管理。
 
 ---
 
-## 頁面與路由
+## 子專案
 
-| Path | Name | 元件 | 用途 |
+| 路徑 | 名稱 | 技術 | 用途 |
 |---|---|---|---|
-| `/` | HomePage | `HomePage.vue` | 引導頁、活動 CTA |
-| `/game` | GamePage | `GamePage.vue` | 選籤主畫面 |
-| `/play` | PlayPage | `PlayPage.vue` | 3D 扭蛋抽籤互動 |
-| `/make` | MakePage | `MakePage.vue` | 結果合成中過場 |
-| `/result` | ResultPage | `ResultPage.vue` | 籤詩結果與分享 |
-| `/:catchAll(.*)*` | — | `HomePage` | 未匹配路徑 fallback |
-
-路由模式為 `history`,部署時須由 S3 / CDN 將未匹配路由 fallback 至 `index.html`。
+| `web/` | `amulet` | Quasar 2 / Vue 3 / TypeScript / Three.js / Cannon-ES | 使用者互動前端,部署至 AWS S3 |
+| `server/` | `server` | Node.js / Express / sharp / node-cron | 圖片上傳與處理 API,部署至 AWS Elastic Beanstalk |
 
 ---
 
-## 環境變數
+## 系統概觀
 
-採用自製 `variables/parser.js` 載入器,先讀 `variables/.env`,再覆寫 `variables/.env.${ENVIRONMENT}`。
+```
+                  ┌──────────────────┐
+   browser  ──→   │   web/  (SPA)    │
+                  │  Quasar/Three.js │
+                  └────────┬─────────┘
+                           │ XHR / fetch (POST base64 image)
+                           ▼
+                  ┌──────────────────┐
+                  │ server/  (API)   │
+                  │ Express + sharp  │
+                  └────────┬─────────┘
+                           │ PNG (壓縮 / 重命名)
+                           ▼
+                  ┌──────────────────┐
+                  │  images/  (FS)   │
+                  └──────────────────┘
+```
 
-| 變數 | 說明 |
-|---|---|
-| `QUASAR_ENVIRONMENT` | `development` / `staging` / `production` |
-| `QUASAR_GTM_ID` | Google Tag Manager 容器 ID |
-| `QUASAR_SENTRY_DSN` | Sentry DSN |
-| `QUASAR_SHARE_URL` | 對外分享連結 base |
-| `PROJECT_NAME` | 專案識別名稱 |
-| `IMAGE_API_URL` | 後端圖片 / 素材 API 來源 |
+- web 端透過環境變數 `IMAGE_API_URL` 指向 server。
+- server 端以 CORS allow-list 控管允許來源(預設僅放行正式網域與 localhost)。
+- 觀測層由 web 端 Sentry / GTM 處理,server 端使用 console + helmet hardening。
 
 ---
 
-## 本地開發
+## 快速開始
 
-### 1. 安裝依賴
+### 前置需求
+
+- Node.js `^18 || ^20`
+- npm `>= 9`(各子專案目前未使用 workspaces,各自 install)
+
+### 啟動全端開發環境
 
 ```bash
+# 後端(終端 A)
+cd server
+cp .env.example .env
 npm install
-```
+npm run dev          # http://localhost:3000
 
-> Node 版本:`^14.19 || ^16 || ^18`(見 `package.json` engines)
-
-### 2. 建立環境變數
-
-```bash
-cp variables/.env.example variables/.env
+# 前端(終端 B)
+cd web
 cp variables/.env.example variables/.env.development
-# 依需求填入實際值
+npm install
+npm run dev          # http://localhost:9000
 ```
-
-### 3. 啟動開發伺服器
-
-```bash
-npm run dev               # ENVIRONMENT=development
-npm run dev:staging       # 用 staging 環境變數啟動
-npm run dev:production    # 用 production 環境變數啟動
-```
-
-預設 dev server 為 `http://localhost:9000`(可於 `quasar.config.js` 調整)。
 
 ---
 
-## 建置與部署
+## 版本與發版
 
-### Build
+採 **Git Flow + Conventional Commits + SemVer**。
 
-```bash
-npm run build:staging      # 產出 dist/spa(staging 設定)
-npm run build:production   # 產出 dist/spa(production 設定)
-```
-
-### Deploy(AWS S3)
-
-需先設定本機 AWS CLI credentials。
-
-```bash
-make deploy-stg            # build:staging → s3://preview-amulet.web-interactive.org
-make deploy-prd            # build:production → s3://amulet.web-interactive.org
-```
-
-> Makefile 使用 `aws s3 sync ... --delete`,部署等同於完整覆蓋目標 bucket。
-
----
-
-## 程式規範
-
-| 工具 | 設定檔 |
+| 分支 | 用途 |
 |---|---|
-| ESLint | `.eslintrc.cjs`(extends `airbnb-base`、`@typescript-eslint`、`prettier`) |
-| Prettier | `.prettierrc` |
-| EditorConfig | `.editorconfig` |
-| TypeScript | `tsconfig.json` |
+| `main` | 對應 production,只接受 release / hotfix 合併 |
+| `develop` | 整合分支,日常開發起點 |
+| `feature/*` | 新功能開發 |
+| `release/*` | 發版前固化,bump 版本號 |
+| `hotfix/*` | 上線後緊急修補 |
+
+Tag 格式:`vX.Y.Z`(annotated tag,指向 main 上的 release merge commit)。
+
+### Release 流程
 
 ```bash
-npm run lint               # 檢查所有 .js / .ts / .vue / .cjs
-npm run format             # Prettier 全專案格式化
+git checkout develop
+git checkout -b release/X.Y.Z
+# bump web/package.json + server/package.json + lock files
+git commit -am "chore(release): bump version to X.Y.Z"
+
+git checkout main && git merge --no-ff release/X.Y.Z
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+
+git checkout develop && git merge --no-ff release/X.Y.Z
+git branch -d release/X.Y.Z
+
+git push origin main develop --tags
 ```
 
 ---
 
-## 第三方服務整合
+## Commit 規範
 
-- **Sentry**(`src/boot/sentry.ts`):捕捉 Vue 錯誤、Promise rejection、效能 trace。DSN 由 `QUASAR_SENTRY_DSN` 提供。
-- **Google Tag Manager**(`src/boot/gtm.ts`):透過 `@gtm-support/vue-gtm` 自動注入,`QUASAR_GTM_ID` 控制環境。
-- **AWS S3**:作為靜態檔案 origin,前端流量由 CDN 分發。
+[Conventional Commits](https://www.conventionalcommits.org/) + scope:
+
+```
+feat(web): add gyroscope-driven amulet rotation
+fix(server): handle CORS preflight for /api/upload-image
+chore(release): bump version to 1.1.0
+docs(readme): rewrite monorepo overview
+refactor(server): extract image pipeline into module
+```
+
+scope 對應子專案資料夾名稱(`web` / `server`),或 `release` / `repo` / `ci` 等橫切議題。
 
 ---
 
-## 瀏覽器支援
+## License
 
-於 `quasar.config.js > build.target`:
+Private — 內部專案,未經授權不得散佈。
 
-```
-browser: ['es2019', 'edge88', 'firefox78', 'chrome87', 'safari13.1']
-```
+## Maintainer
 
-不支援 IE。行動裝置以 iOS Safari 13.1+ / Android Chrome 等近 4 個主版本為主。
-
-
+**Ken** — `ken141718@gmail.com`
